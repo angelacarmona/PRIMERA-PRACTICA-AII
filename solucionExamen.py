@@ -54,8 +54,6 @@ def extraer_elementos():
                             encuadernacion, fecha_edicion_def, autor, coleccion, descuento))
     return lista_comics
 
-
-
 #-----------------------------------------------------------------------------------------------------
 
 '''def cargar():
@@ -120,6 +118,80 @@ def almacenar_bd():
 
 
 #-----------------------------------------------------------------------------------------------------
+def listar_comics_especificos(cursor):
+    v = Toplevel()
+    sc = Scrollbar(v)
+    sc.pack(side=RIGHT, fill=Y)
+    lb = Listbox(v, width=150, yscrollcommand=sc.set)
+    for row in cursor:
+        s = 'TITULO: ' + str(row[0])
+        lb.insert(END, s)
+        lb.insert(END, "-----------------------------------------------------")    
+        # Convertimos row[2] y row[3] a str() porque en la BD son REAL (float)
+        s = "     DISPONIBILIDAD: " + str(row[1]) + "   |   PRECIO ORIGINAL: " + str(row[2]) + "    |    PRECIO DESCUENTO: " + str(row[3]) 
+        lb.insert(END, s)
+        s = "     ENCUADERNACIÓN: " + str(row[4]) + "   |   FECHA DE EDICIÓN: " + str(row[5]) + "    |    AUTOR: " + str(row[6]) + "    |    COLECCIÓN: " + str(row[7]) 
+        lb.insert(END, s)
+        lb.insert(END, "\n\n")
+    lb.pack(side=LEFT, fill=BOTH)
+    sc.config(command=lb.yview)
+    
+def listar_todos_comics():
+    conn = sqlite3.connect('comics.db')
+    conn.text_factory = str
+    cursor = conn.execute("SELECT * FROM COMIC")
+    listar_comics_especificos(cursor)
+    conn.close()
+
+def listar_5_mas_descuento():
+    conn = sqlite3.connect('comics.db')
+    conn.text_factory = str
+    cursor = conn.execute("SELECT * FROM COMIC ORDER BY DESCUENTO DESC LIMIT 5")
+    listar_comics_especificos(cursor)
+    conn.close()
+
+def buscar_titulo_coleccion():
+    def listar():
+        palabra = en.get().strip()
+        
+        # Comprobamos que haya escrito una sola palabra (sin espacios y que no esté vacio)
+        if not palabra or " " in palabra:
+            messagebox.showerror("Error", "Debe introducir una única palabra y sin espacios")
+            return
+            
+        conn = sqlite3.connect('comics.db')
+        conn.text_factory = str
+        
+        # Elegimos la consulta según los checkbuttons seleccionados
+        if var_titulo.get() == 1 and var_coleccion.get() == 1:
+            cursor = conn.execute("SELECT * FROM COMIC WHERE TITULO LIKE '%" + palabra + "%' OR COLECCION LIKE '%" + palabra + "%'")
+        elif var_titulo.get() == 1:
+            cursor = conn.execute("SELECT * FROM COMIC WHERE TITULO LIKE '%" + palabra + "%'")
+        elif var_coleccion.get() == 1:
+            cursor = conn.execute("SELECT * FROM COMIC WHERE COLECCION LIKE '%" + palabra + "%'")
+        else:
+            messagebox.showerror("Error", "Seleccione al menos una opción (Título y/o Colección)")
+            conn.close()
+            return
+            
+        listar_comics_especificos(cursor)
+        conn.close()
+
+    v = Toplevel()
+    var_titulo = IntVar()
+    var_coleccion = IntVar()
+    
+    cb1 = Checkbutton(v, text="Título", variable=var_titulo)
+    cb2 = Checkbutton(v, text="Colección", variable=var_coleccion)
+    en = Entry(v)
+    b = Button(v, text="Buscar", command=listar)
+    
+    cb1.pack(side=LEFT)
+    cb2.pack(side=LEFT)
+    en.pack(side=LEFT)
+    b.pack(side=LEFT)
+    
+
 
 def ventana_principal():
     raiz = Tk()
@@ -134,21 +206,20 @@ def ventana_principal():
 
     # LISTAR
     menulistar = Menu(menu, tearoff=0)
-    #menulistar.add_command(label="Todos los comics", command=listar_todos_comics)
-    #menulistar.add_command(label="Comics con más descuento", command=listar_5_mas_descuento)
+    menulistar.add_command(label="Todos los comics", command=listar_todos_comics)
+    menulistar.add_command(label="Comics con más descuento", command=listar_5_mas_descuento)
     menu.add_cascade(label="Listar", menu=menulistar)
 
     # BUSCAR
     menubuscar = Menu(menu, tearoff=0)
     #menubuscar.add_command(label="Comics por autor", command=buscar_por_autor)
     #menubuscar.add_command(label="Comics por fecha", command=buscar_por_fecha)
-    #menubuscar.add_command(label="Comics por título o colección", command=buscar_titulo_coleccion)
+    menubuscar.add_command(label="Comics por título o colección", command=buscar_titulo_coleccion)
     menu.add_cascade(label="Buscar", menu=menubuscar)
 
     raiz.config(menu=menu)
 
     raiz.mainloop()
-
 
 if __name__ == "__main__":
     ventana_principal()
