@@ -56,7 +56,7 @@ def extraer_elementos():
 
 #-----------------------------------------------------------------------------------------------------
 
-'''def cargar():
+def cargar():
     ultima_carga = "nunca"
     try:
         conn = sqlite3.connect('comics.db')
@@ -72,11 +72,6 @@ def extraer_elementos():
 
     respuesta = messagebox.askyesno(title="Confirmar", message=mensaje)
     if respuesta:
-        almacenar_bd()'''
-
-def cargar():
-    respuesta = messagebox.askyesno(title="Confirmar",message="Esta seguro que quiere recargar los datos. \nEsta operación puede ser lenta")
-    if respuesta:
         almacenar_bd()
 
 
@@ -84,6 +79,7 @@ def almacenar_bd():
     conn = sqlite3.connect('comics.db')
     conn.text_factory = str
     conn.execute("DROP TABLE IF EXISTS COMIC")
+    conn.execute("DROP TABLE IF EXISTS INFO_CARGA")
     conn.execute('''CREATE TABLE COMIC
     (TITULO TEXT NOT NULL,
     DISPONIBILIDAD TEXT ,
@@ -94,6 +90,8 @@ def almacenar_bd():
     AUTORES TEXT,
     COLECCION TEXT,
     DESCUENTO INT);''')
+    conn.execute('''CREATE TABLE INFO_CARGA
+    (FECHA_ULTIMA_CARGA DATE);''')
 
     lista_comics = extraer_elementos()
     
@@ -109,6 +107,10 @@ def almacenar_bd():
         descuento = comic[8]
 
         conn.execute("""INSERT INTO COMIC (TITULO, DISPONIBILIDAD, PRECIO_ORIGINAL, PRECIO_DESCUENTO, ENCUADERNACION, FECHA_EDICION, AUTORES, COLECCION, DESCUENTO) VALUES (?,?,?,?,?,?,?,?,?)""", (titulo, disponibilidad, precio_original, precio_descuento, encuadernacion, fecha_edicion, autores, coleccion, descuento))
+
+    ahora = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    conn.execute("INSERT INTO INFO_CARGA (FECHA_ULTIMA_CARGA) VALUES (?)", (ahora,))
+    
     conn.commit()
     
     cursor = conn.execute("SELECT COUNT(*) FROM COMIC")
@@ -149,6 +151,56 @@ def listar_5_mas_descuento():
     cursor = conn.execute("SELECT * FROM COMIC ORDER BY DESCUENTO DESC LIMIT 5")
     listar_comics_especificos(cursor)
     conn.close()
+#-----------------------------------------------------------------------------------------------------
+
+def buscar_por_autor():
+    def listar(event):
+        conn = sqlite3.connect('comics.db')
+        conn.text_factory = str
+        cursor = conn.execute("SELECT TITULO, DISPONIBILIDAD, PRECIO_ORIGINAL, PRECIO_DESCUENTO, ENCUADERNACION, FECHA_EDICION, AUTORES, COLECCION FROM COMIC WHERE AUTORES LIKE '%" + str(entry.get()) + "%'")
+        listar_comics_especificos(cursor)
+        conn.close()
+
+    conn = sqlite3.connect('comics.db')
+    conn.text_factory = str
+    cursor = conn.execute("SELECT DISTINCT AUTORES FROM COMIC")
+    autores = set()
+    for row in cursor:
+        cadena_autores = row[0]
+        for autor in cadena_autores.split("-"):
+            autor_limpio = autor.strip()
+            if autor_limpio:
+                autores.add(autor_limpio)
+    conn.close()
+
+    autores = sorted(list(autores))  
+
+    v = Toplevel() #crea una ventana secundaria
+    label = Label(v, text="Seleccione un autor:")
+    label.pack(side=LEFT)
+    entry = Spinbox(v, width=50, values=autores)
+    entry.bind("<Return>", listar)
+    entry.pack(side=LEFT)
+
+def buscar_por_fecha():
+    def listar(event):
+        conn = sqlite3.connect('comics.db')
+        conn.text_factory = str
+        fec = re.match(r"\d\d/\d\d/\d{4}",entry.get().strip())
+        if fec:
+            fecha = datetime.datetime.strptime(entry.get().strip(),"%d/%m/%Y")
+            cursor = conn.execute("SELECT TITULO, DISPONIBILIDAD, PRECIO_ORIGINAL, PRECIO_DESCUENTO, ENCUADERNACION, FECHA_EDICION, AUTORES, COLECCION FROM COMIC WHERE FECHA_EDICION < ?", (fecha,))
+            listar_comics_especificos(cursor)
+            conn.close()
+        else:
+            messagebox.showerror("Error", "Formato de fecha incorrecto")
+
+    v = Toplevel()
+    label = Label(v,text="Escriba la fecha (dd/mm/aaaa): ")
+    label.pack(side=LEFT)
+    entry = Entry(v)
+    entry.bind("<Return>", listar)
+    entry.pack(side=LEFT)
 
 def buscar_titulo_coleccion():
     def listar():
@@ -212,8 +264,8 @@ def ventana_principal():
 
     # BUSCAR
     menubuscar = Menu(menu, tearoff=0)
-    #menubuscar.add_command(label="Comics por autor", command=buscar_por_autor)
-    #menubuscar.add_command(label="Comics por fecha", command=buscar_por_fecha)
+    menubuscar.add_command(label="Comics por autor", command=buscar_por_autor)
+    menubuscar.add_command(label="Comics por fecha", command=buscar_por_fecha)
     menubuscar.add_command(label="Comics por título o colección", command=buscar_titulo_coleccion)
     menu.add_cascade(label="Buscar", menu=menubuscar)
 
